@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notice Generator — Bank Notice Automation</title>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.2.0/dist/pizzip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ink:#1a1d29;
+  --ink-soft:#4a4f63;
+  --ink-mute:#8b8fa3;
+  --paper:#fdfcfa;
+  --paper-raised:#ffffff;
+  --line:#e4e1d8;
+  --line-strong:#c9c4b5;
+  --brass:#8a6d3b;
+  --brass-dim:#b89968;
+  --brass-fill:#f4ead8;
+  --seal:#7a3b3b;
+  --seal-fill:#f6e6e2;
+  --moss:#4f6b4a;
+  --moss-fill:#e8efe4;
+  --slate:#3d5566;
+  --slate-fill:#e5eef2;
+  --radius:3px;
+  --radius-lg:6px;
+  --font-serif:'Source Serif 4','Georgia',serif;
+  --font-sans:'Inter','Helvetica Neue',sans-serif;
+  --font-mono:'IBM Plex Mono','SF Mono',monospace;
+  --shadow-card:0 1px 2px rgba(26,29,41,0.04), 0 4px 12px rgba(26,29,41,0.03);
+  --shadow-raised:0 2px 4px rgba(26,29,41,0.06), 0 12px 32px rgba(26,29,41,0.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#eae7dc;
+    --ink-soft:#c2beb0;
+    --ink-mute:#7d7a70;
+    --paper:#17181c;
+    --paper-raised:#1e2024;
+    --line:#33342f;
+    --line-strong:#47483f;
+    --brass:#d4b57e;
+    --brass-dim:#8a7350;
+    --brass-fill:#2e2717;
+    --seal:#d99999;
+    --seal-fill:#331f1f;
+    --moss:#9ac491;
+    --moss-fill:#1e2a1c;
+    --slate:#9ac3db;
+    --slate-fill:#1a2730;
+    --shadow-card:0 1px 2px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.2);
+    --shadow-raised:0 2px 4px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:var(--font-sans);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+.app{max-width:960px; margin:0 auto; padding:0 24px 120px;}
+
+/* ===== Masthead ===== */
+.masthead{
+  padding:48px 0 32px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:40px;
+  position:relative;
+}
+.masthead-eyebrow{
+  font-family:var(--font-mono);
+  font-size:11px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--brass);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:14px;
+}
+.masthead-eyebrow::before{
+  content:'';
+  width:16px; height:1px;
+  background:var(--brass-dim);
+}
+.masthead h1{
+  font-family:var(--font-serif);
+  font-weight:600;
+  font-size:38px;
+  letter-spacing:-0.01em;
+  line-height:1.12;
+  max-width:640px;
+}
+.masthead p{
+  font-size:15px;
+  color:var(--ink-soft);
+  max-width:520px;
+  margin-top:12px;
+  line-height:1.6;
+}
+.masthead-index{
+  position:absolute;
+  right:0; top:50px;
+  font-family:var(--font-mono);
+  font-size:12px;
+  color:var(--ink-mute);
+  text-align:right;
+  line-height:1.8;
+}
+.masthead-index span{color:var(--brass);}
+
+/* ===== Stage rail ===== */
+.rail{
+  display:flex;
+  gap:0;
+  margin-bottom:44px;
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+  background:var(--paper-raised);
+}
+.rail-step{
+  flex:1;
+  padding:16px 18px;
+  position:relative;
+  cursor:default;
+  transition:background 0.2s;
+}
+.rail-step:not(:last-child)::after{
+  content:'';
+  position:absolute;
+  right:0; top:14px; bottom:14px;
+  width:1px;
+  background:var(--line);
+}
+.rail-step-num{
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--ink-mute);
+  margin-bottom:6px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.rail-step-num .dot{
+  width:6px; height:6px;
+  border-radius:50%;
+  background:var(--line-strong);
+  transition:background 0.2s, box-shadow 0.2s;
+}
+.rail-step-label{
+  font-size:13px;
+  font-weight:500;
+  color:var(--ink-mute);
+  transition:color 0.2s;
+}
+.rail-step.active .rail-step-label{color:var(--ink);}
+.rail-step.active .rail-step-num{color:var(--brass);}
+.rail-step.active .dot{background:var(--brass); box-shadow:0 0 0 3px var(--brass-fill);}
+.rail-step.done .dot{background:var(--moss);}
+.rail-step.done .rail-step-label{color:var(--ink-soft);}
+.rail-step.done .rail-step-num{color:var(--moss);}
+
+/* ===== Stage panels ===== */
+.stage{display:none; animation:rise 0.35s ease;}
+.stage.active{display:block;}
+@keyframes rise{
+  from{opacity:0; transform:translateY(8px);}
+  to{opacity:1; transform:translateY(0);}
+}
+
+.stage-head{margin-bottom:24px;}
+.stage-head h2{
+  font-family:var(--font-serif);
+  font-size:22px;
+  font-weight:600;
+  margin-bottom:6px;
+}
+.stage-head p{font-size:14px; color:var(--ink-soft); max-width:560px;}
+
+/* ===== Upload dropzones ===== */
+.upload-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+  margin-bottom:20px;
+}
+@media (max-width:720px){.upload-grid{grid-template-columns:1fr;}}
+.dropzone{
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-raised);
+  padding:28px 22px;
+  text-align:left;
+  cursor:pointer;
+  transition:border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  position:relative;
+  min-height:180px;
+  display:flex;
+  flex-direction:column;
+}
+.dropzone:hover{border-color:var(--brass-dim); box-shadow:var(--shadow-card);}
+.dropzone.drag{border-color:var(--brass); background:var(--brass-fill); transform:scale(1.01);}
+.dropzone.filled{border-color:var(--moss); border-style:solid;}
+.dropzone-tag{
+  font-family:var(--font-mono);
+  font-size:10px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--brass);
+  margin-bottom:14px;
+}
+.dropzone-icon{
+  width:38px; height:38px;
+  margin-bottom:16px;
+  color:var(--ink-mute);
+  transition:color 0.2s;
+}
+.dropzone.filled .dropzone-icon{color:var(--moss);}
+.dropzone h3{
+  font-family:var(--font-serif);
+  font-size:17px;
+  font-weight:600;
+  margin-bottom:6px;
+}
+.dropzone p{font-size:13px; color:var(--ink-soft); line-height:1.55;}
+.dropzone input[type=file]{display:none;}
+.dropzone-file{
+  margin-top:auto;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12.5px;
+  color:var(--moss);
+  font-family:var(--font-mono);
+  word-break:break-all;
+}
+.dropzone-file svg{flex-shrink:0; width:14px; height:14px;}
+.dropzone-remove{
+  margin-left:auto;
+  background:none; border:none;
+  color:var(--ink-mute);
+  cursor:pointer;
+  font-size:16px;
+  line-height:1;
+  padding:2px 4px;
+  flex-shrink:0;
+}
+.dropzone-remove:hover{color:var(--seal);}
+
+.stage-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:28px;
+  padding-top:20px;
+  border-top:1px solid var(--line);
+}
+
+/* ===== Buttons ===== */
+.btn{
+  font-family:var(--font-sans);
+  font-size:13.5px;
+  font-weight:500;
+  padding:10px 20px;
+  border-radius:var(--radius);
+  border:1px solid var(--line-strong);
+  background:var(--paper-raised);
+  color:var(--ink);
+  cursor:pointer;
+  transition:all 0.15s;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+.btn:hover:not(:disabled){border-color:var(--ink-mute); transform:translateY(-1px); box-shadow:var(--shadow-card);}
+.btn:active:not(:disabled){transform:translateY(0);}
+.btn:disabled{opacity:0.4; cursor:not-allowed;}
+.btn-primary{
+  background:var(--ink);
+  color:var(--paper);
+  border-color:var(--ink);
+}
+@media (prefers-color-scheme: dark){
+  .btn-primary{background:var(--brass); color:#17181c; border-color:var(--brass);}
+}
+.btn-primary:hover:not(:disabled){opacity:0.88; box-shadow:var(--shadow-raised);}
+.btn-ghost{border-color:transparent; background:none;}
+.btn-ghost:hover:not(:disabled){background:var(--brass-fill); border-color:transparent;}
+.btn svg{width:14px; height:14px;}
+
+/* ===== Analysis loading ===== */
+.analyzing{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:70px 20px;
+  text-align:center;
+}
+.analyzing-mark{
+  width:52px; height:52px;
+  border-radius:50%;
+  border:2px solid var(--line);
+  border-top-color:var(--brass);
+  animation:spin 0.9s linear infinite;
+  margin-bottom:22px;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.analyzing h3{font-family:var(--font-serif); font-size:18px; margin-bottom:8px;}
+.analyzing p{font-size:13.5px; color:var(--ink-soft); max-width:380px;}
+.analyzing-log{
+  margin-top:24px;
+  font-family:var(--font-mono);
+  font-size:11.5px;
+  color:var(--ink-mute);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-height:60px;
+}
+.analyzing-log .done{color:var(--moss);}
+
+/* ===== Field checklist (Stage 3) ===== */
+.field-panel{
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-raised);
+  overflow:hidden;
+  margin-bottom:20px;
+}
+.field-panel-head{
+  padding:16px 20px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  background:var(--brass-fill);
+}
+.field-panel-head h3{font-family:var(--font-serif); font-size:16px; font-weight:600;}
+.field-panel-head span{font-family:var(--font-mono); font-size:11px; color:var(--brass);}
+.field-list{padding:6px 8px;}
+.field-row{
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+  padding:13px 12px;
+  border-radius:var(--radius);
+  transition:background 0.15s;
+}
+.field-row:hover{background:var(--paper);}
+.field-check{
+  flex-shrink:0;
+  width:19px; height:19px;
+  border:1.5px solid var(--line-strong);
+  border-radius:4px;
+  margin-top:1px;
+  cursor:pointer;
+  position:relative;
+  transition:all 0.15s;
+  background:var(--paper-raised);
+}
+.field-check.checked{background:var(--moss); border-color:var(--moss);}
+.field-check.checked::after{
+  content:'';
+  position:absolute;
+  left:5px; top:1px;
+  width:5px; height:9px;
+  border:solid white;
+  border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+.field-row-body{flex:1; min-width:0; cursor:pointer;}
+.field-row-name{font-size:14px; font-weight:500; margin-bottom:2px;}
+.field-row-desc{font-size:12.5px; color:var(--ink-soft); line-height:1.5;}
+.field-row-src{
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  color:var(--slate);
+  background:var(--slate-fill);
+  padding:2px 7px;
+  border-radius:3px;
+  display:inline-block;
+  margin-top:5px;
+}
+.field-row-sample{
+  font-family:var(--font-mono);
+  font-size:11.5px;
+  color:var(--ink-mute);
+  margin-top:4px;
+}
+.field-row.core .field-row-src{color:var(--brass); background:var(--brass-fill);}
+
+.extra-box{
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-raised);
+  padding:18px 20px;
+}
+.extra-box label{
+  display:block;
+  font-size:13px;
+  font-weight:500;
+  margin-bottom:4px;
+}
+.extra-box .hint{font-size:12px; color:var(--ink-mute); margin-bottom:12px;}
+.extra-box textarea{
+  width:100%;
+  min-height:84px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  font-size:13.5px;
+  padding:12px 14px;
+  resize:vertical;
+  line-height:1.55;
+}
+.extra-box textarea:focus{outline:none; border-color:var(--brass-dim);}
+.extra-box textarea::placeholder{color:var(--ink-mute);}
+
+/* ===== Bank groups preview (Stage 4) ===== */
+.summary-strip{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+  margin-bottom:24px;
+}
+.summary-card{
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-raised);
+  padding:16px 18px;
+}
+.summary-card .num{font-family:var(--font-serif); font-size:26px; font-weight:600; color:var(--brass);}
+.summary-card .lbl{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+.bank-card{
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-raised);
+  margin-bottom:14px;
+  overflow:hidden;
+}
+.bank-card-head{
+  padding:14px 18px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  cursor:pointer;
+  user-select:none;
+}
+.bank-card-mark{
+  width:34px; height:34px;
+  border-radius:50%;
+  background:var(--slate-fill);
+  color:var(--slate);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--font-serif);
+  font-weight:600;
+  font-size:14px;
+  flex-shrink:0;
+}
+.bank-card-title{flex:1; min-width:0;}
+.bank-card-title .name{font-size:14.5px; font-weight:600;}
+.bank-card-title .meta{font-family:var(--font-mono); font-size:11px; color:var(--ink-mute); margin-top:2px;}
+.bank-card-count{
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--moss);
+  background:var(--moss-fill);
+  padding:4px 10px;
+  border-radius:12px;
+  flex-shrink:0;
+}
+.bank-card-chevron{color:var(--ink-mute); transition:transform 0.2s; flex-shrink:0;}
+.bank-card.open .bank-card-chevron{transform:rotate(180deg);}
+.bank-card-body{display:none; border-top:1px solid var(--line);}
+.bank-card.open .bank-card-body{display:block;}
+.bank-table{width:100%; border-collapse:collapse; font-size:12px;}
+.bank-table th{
+  text-align:left;
+  font-family:var(--font-mono);
+  font-weight:500;
+  font-size:10px;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  color:var(--ink-mute);
+  padding:9px 12px;
+  background:var(--paper);
+  border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+.bank-table td{
+  padding:9px 12px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink-soft);
+  white-space:nowrap;
+}
+.bank-table tr:last-child td{border-bottom:none;}
+.bank-table .layer-pill{
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  background:var(--brass-fill);
+  color:var(--brass);
+  padding:2px 7px;
+  border-radius:10px;
+}
+
+/* ===== Stage 5: generated ===== */
+.done-hero{
+  text-align:center;
+  padding:36px 20px 30px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:28px;
+}
+.done-mark{
+  width:56px; height:56px;
+  border-radius:50%;
+  background:var(--moss-fill);
+  color:var(--moss);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 auto 18px;
+}
+.done-hero h2{font-family:var(--font-serif); font-size:23px; font-weight:600; margin-bottom:6px;}
+.done-hero p{font-size:14px; color:var(--ink-soft);}
+
+.notice-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin-bottom:24px;
+}
+@media (max-width:640px){.notice-grid{grid-template-columns:1fr;}}
+.notice-card{
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-raised);
+  padding:16px 18px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  transition:border-color 0.15s, box-shadow 0.15s;
+}
+.notice-card:hover{border-color:var(--brass-dim); box-shadow:var(--shadow-card);}
+.notice-card-icon{
+  width:36px; height:36px;
+  border-radius:6px;
+  background:var(--slate-fill);
+  color:var(--slate);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+}
+.notice-card-body{flex:1; min-width:0;}
+.notice-card-body .name{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.notice-card-body .meta{font-family:var(--font-mono); font-size:11px; color:var(--ink-mute); margin-top:2px;}
+.notice-card-dl{
+  width:32px; height:32px;
+  border-radius:50%;
+  border:1px solid var(--line-strong);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--ink-soft);
+  cursor:pointer;
+  flex-shrink:0;
+  transition:all 0.15s;
+  background:none;
+}
+.notice-card-dl:hover{border-color:var(--moss); color:var(--moss); background:var(--moss-fill);}
+
+.done-actions{display:flex; justify-content:center; gap:12px; padding-top:8px;}
+
+/* ===== Toast / error ===== */
+.toast{
+  position:fixed;
+  bottom:24px; left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--ink);
+  color:var(--paper);
+  padding:12px 20px;
+  border-radius:var(--radius);
+  font-size:13px;
+  box-shadow:var(--shadow-raised);
+  opacity:0;
+  pointer-events:none;
+  transition:all 0.25s;
+  z-index:50;
+  max-width:480px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+.toast.error{background:var(--seal);}
+
+.empty-hint{
+  text-align:center;
+  padding:50px 20px;
+  color:var(--ink-mute);
+  font-size:13.5px;
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+
+/* ============================================================
+   Notice Generator — state + shell
+   Stages: 0 upload  1 analyzing  2 confirm-fields  3 review-groups  4 done
+   ============================================================ */
+
+const state = {
+  stage: 0,
+  templateFile: null,      // {name, arrayBuffer}
+  complaintFiles: [],      // [{name, arrayBuffer, fileType}]
+  templateAnalysis: null,  // {placeholders:[], tableColumns:[], rawXml, zip}
+  complaintData: null,     // {ackNumber, victimName, rows:[...]}
+  fieldPlan: [],           // [{id, label, desc, source, sample, checked, core}]
+  extraInstructions: '',
+  selectedLayers: new Set(), // layer numbers (strings) to include in generated notices
+  bankGroups: [],          // [{bankName, rows:[...]}]
+  generated: [],           // [{bankName, blob, filename}]
+  errorLog: []
+};
+
+function toast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), isError ? 5200 : 3200);
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderMasthead()}
+    ${renderRail()}
+    <div class="stage ${state.stage===0?'active':''}">${renderUploadStage()}</div>
+    <div class="stage ${state.stage===1?'active':''}">${renderAnalyzingStage()}</div>
+    <div class="stage ${state.stage===2?'active':''}">${renderFieldStage()}</div>
+    <div class="stage ${state.stage===3?'active':''}">${renderGroupsStage()}</div>
+    <div class="stage ${state.stage===4?'active':''}">${renderDoneStage()}</div>
+  `;
+  wireStage();
+}
+
+function renderMasthead(){
+  return `
+  <div class="masthead">
+    <div class="masthead-eyebrow">Notice automation</div>
+    <h1>Turn a complaint report into signed bank notices</h1>
+    <p>Upload the notice format you already use and a complaint report — this reads both, asks what to carry across, and drafts one notice per bank in the same layout as your template.</p>
+    <div class="masthead-index"><span>${String(state.stage+1).padStart(2,'0')}</span> / 05</div>
+  </div>`;
+}
+
+const RAIL_STEPS = [
+  {label:'Upload files'},
+  {label:'Read documents'},
+  {label:'Confirm fields'},
+  {label:'Review by bank'},
+  {label:'Download notices'}
+];
+
+function renderRail(){
+  return `<div class="rail">
+    ${RAIL_STEPS.map((s,i) => `
+      <div class="rail-step ${i===state.stage?'active':''} ${i<state.stage?'done':''}">
+        <div class="rail-step-num"><span class="dot"></span>Step ${i+1}</div>
+        <div class="rail-step-label">${s.label}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+/* ---------- Stage 0 : Upload ---------- */
+function renderUploadStage(){
+  const t = state.templateFile, files = state.complaintFiles;
+  return `
+  <div class="stage-head">
+    <h2>Start with your documents</h2>
+    <p>The format is the notice layout you want every output to match — an existing filled example works too. Upload one or more complaint reports as PDF or Excel; every bank found across all of them gets its own notice.</p>
+  </div>
+  <div class="upload-grid">
+    ${dropzone('template', 'Notice format', 'The .docx you want every generated notice to look exactly like — headers, wording, table columns, signature block and all.', t, '.docx')}
+    ${multiDropzone('complaint', 'Complaint reports', 'One or more complaint reports — PDF exports from the portal, or the "Money Transfer to" Excel sheet if you don\'t have a PDF. Mixing both is fine.', files, '.pdf,.xlsx,.xls')}
+  </div>
+  <div class="stage-actions">
+    <button class="btn btn-primary" id="btn-analyze" ${(!t||!files.length)?'disabled':''}>
+      Read documents
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>`;
+}
+
+function multiDropzone(key, title, desc, files, accept){
+  const filled = files.length > 0;
+  return `
+  <label class="dropzone ${filled?'filled':''}" data-dz="${key}">
+    <input type="file" accept="${accept}" data-input="${key}" multiple>
+    <div class="dropzone-tag">02 · Source (PDF or Excel, multiple allowed)</div>
+    <div class="dropzone-icon">${filled ? iconCheck() : iconUpload()}</div>
+    <h3>${title}</h3>
+    <p>${desc}</p>
+    ${filled ? `
+      <div class="dropzone-file" style="flex-direction:column; align-items:flex-start; gap:6px;">
+        ${files.map((f, i) => `
+          <div style="display:flex; align-items:center; gap:8px; width:100%;">
+            ${iconFile()}
+            <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.name)}</span>
+            <span style="font-family:var(--font-mono); font-size:10px; color:var(--ink-mute); flex-shrink:0;">${f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls') ? 'EXCEL' : 'PDF'}</span>
+            <button type="button" class="dropzone-remove" data-remove-index="${i}">&times;</button>
+          </div>`).join('')}
+        <button type="button" class="btn btn-ghost" data-add-more="${key}" style="margin-top:4px; padding:6px 12px; font-size:12px;">+ Add more files</button>
+      </div>` : ''}
+  </label>`;
+}
+
+function dropzone(key, title, desc, file, accept){
+  const filled = !!file;
+  return `
+  <label class="dropzone ${filled?'filled':''}" data-dz="${key}">
+    <input type="file" accept="${accept}" data-input="${key}">
+    <div class="dropzone-tag">${key === 'template' ? '01 · Format' : '02 · Source'}</div>
+    <div class="dropzone-icon">${filled ? iconCheck() : iconUpload()}</div>
+    <h3>${title}</h3>
+    <p>${desc}</p>
+    ${filled ? `
+      <div class="dropzone-file">
+        ${iconFile()}
+        <span>${escapeHtml(file.name)}</span>
+        <button type="button" class="dropzone-remove" data-remove="${key}">&times;</button>
+      </div>` : ''}
+  </label>`;
+}
+
+function iconUpload(){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v13m0-13 4.5 4.5M12 3 7.5 7.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>`;}
+function iconCheck(){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>`;}
+function iconFile(){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`;}
+
+/* ---------- Stage 1 : Analyzing ---------- */
+function renderAnalyzingStage(){
+  return `
+  <div class="analyzing">
+    <div class="analyzing-mark"></div>
+    <h3>Reading your documents</h3>
+    <p>Mapping the notice format's table columns and pulling every transfer row out of the complaint report.</p>
+    <div class="analyzing-log" id="analyzing-log"></div>
+  </div>`;
+}
+
+/* ---------- wiring ---------- */
+function wireStage(){
+  if (state.stage === 0) wireUploadStage();
+  if (state.stage === 2) wireFieldStage();
+  if (state.stage === 3) wireGroupsStage();
+  if (state.stage === 4) wireDoneStage();
+}
+
+function wireUploadStage(){
+  ['template','complaint'].forEach(key => {
+    const zone = document.querySelector(`[data-dz="${key}"]`);
+    const input = document.querySelector(`[data-input="${key}"]`);
+    if (!zone) return;
+
+    input.addEventListener('change', e => {
+      handleFiles(key, e.target.files);
+      input.value = '';
+    });
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag');
+      handleFiles(key, e.dataTransfer.files);
+    });
+
+    const removeBtn = zone.querySelector('[data-remove]');
+    if (removeBtn){
+      removeBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        state.templateFile = null;
+        render();
+      });
+    }
+
+    zone.querySelectorAll('[data-remove-index]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = parseInt(btn.getAttribute('data-remove-index'), 10);
+        state.complaintFiles.splice(idx, 1);
+        render();
+      });
+    });
+
+    const addMoreBtn = zone.querySelector('[data-add-more]');
+    if (addMoreBtn){
+      addMoreBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        input.click();
+      });
+    }
+  });
+
+  const analyzeBtn = document.getElementById('btn-analyze');
+  if (analyzeBtn) analyzeBtn.addEventListener('click', startAnalysis);
+}
+
+async function handleFiles(key, fileList){
+  const files = [...fileList];
+  if (!files.length) return;
+  const isValidExt = (name) => {
+    const lower = name.toLowerCase();
+    if (key === 'template') return lower.endsWith('.docx');
+    return lower.endsWith('.pdf') || lower.endsWith('.xlsx') || lower.endsWith('.xls');
+  };
+  const valid = files.filter(f => isValidExt(f.name));
+  if (valid.length < files.length){
+    const expected = key === 'template' ? '.docx' : '.pdf, .xlsx or .xls';
+    toast(`Skipped ${files.length - valid.length} file(s) that weren't ${expected}.`, true);
+  }
+  try{
+    const entries = await Promise.all(valid.map(async f => {
+      const lower = f.name.toLowerCase();
+      const fileType = (lower.endsWith('.xlsx') || lower.endsWith('.xls')) ? 'excel' : 'pdf';
+      return { name: f.name, arrayBuffer: await f.arrayBuffer(), fileType };
+    }));
+    if (key === 'template'){
+      state.templateFile = entries[0] || state.templateFile;
+    } else {
+      const existingNames = new Set(state.complaintFiles.map(f => f.name));
+      const newOnes = entries.filter(e => !existingNames.has(e.name));
+      state.complaintFiles = [...state.complaintFiles, ...newOnes];
+    }
+    render();
+  }catch(err){
+    toast('Could not read one of those files — try again.', true);
+    console.error(err);
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============================================================
+   Analysis engine
+   ============================================================ */
+
+async function startAnalysis(){
+  state.stage = 1;
+  render();
+  const log = document.getElementById('analyzing-log');
+  const steps = [];
+  const logStep = (msg) => {
+    steps.push(msg);
+    if (log) log.innerHTML = steps.map((s,i) =>
+      `<div class="${i < steps.length-1 ? 'done' : ''}">${i < steps.length-1 ? '\u2713' : '\u2026'} ${escapeHtml(s)}</div>`
+    ).join('');
+  };
+
+  try{
+    logStep('Unzipping notice format');
+    const templateAnalysis = analyzeTemplate(state.templateFile.arrayBuffer);
+    state.templateAnalysis = templateAnalysis;
+    await sleep(200);
+
+    logStep('Locating the fill-in table inside the format');
+    await sleep(250);
+
+    logStep('Reading the complaint report' + (state.complaintFiles.length > 1 ? 's' : ''));
+    await sleep(150);
+
+    logStep('Parsing the money-transfer table' + (state.complaintFiles.length > 1 ? 's' : ''));
+    const perFileResults = [];
+    for (const cf of state.complaintFiles){
+      const data = cf.fileType === 'excel'
+        ? await extractComplaintDataFromExcel(cf.arrayBuffer)
+        : await extractComplaintData(cf.arrayBuffer);
+      perFileResults.push({ file: cf, data });
+    }
+    const complaintData = mergeComplaintData(perFileResults);
+    state.complaintData = complaintData;
+    await sleep(200);
+
+    if (!complaintData.rows.length){
+      throw new Error('No "Money Transfer To" rows were found in the uploaded file(s). Make sure each complaint report includes that table.');
+    }
+
+    logStep(`Found ${complaintData.rows.length} transfer row${complaintData.rows.length===1?'':'s'} across ${new Set(complaintData.rows.map(r=>r.bankName)).size} bank${new Set(complaintData.rows.map(r=>r.bankName)).size===1?'':'s'}${state.complaintFiles.length>1?` from ${state.complaintFiles.length} complaints`:''}`);
+    await sleep(250);
+
+    logStep('Building the field checklist');
+    state.fieldPlan = buildFieldPlan(templateAnalysis, complaintData);
+    const foundLayers = [...new Set(complaintData.rows.map(r => r.layer).filter(Boolean))];
+    // Default to layers 1-3 checked (typical SI investigation scope);
+    // anything beyond starts unticked as an explicit opt-in.
+    state.selectedLayers = new Set(foundLayers.filter(l => parseInt(l, 10) <= 3));
+    await sleep(300);
+
+    state.stage = 2;
+    render();
+  }catch(err){
+    console.error(err);
+    toast(err.message || 'Something went wrong while reading the documents.', true);
+    state.stage = 0;
+    render();
+  }
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* ---- Template analysis (docx) ---- */
+function analyzeTemplate(arrayBuffer){
+  const zip = new PizZip(arrayBuffer);
+  const docXmlFile = zip.file('word/document.xml');
+  if (!docXmlFile) throw new Error('That file doesn\'t look like a valid .docx — the document.xml part is missing.');
+  const xml = docXmlFile.asText();
+
+  // Merge adjacent runs that share identical rPr so split placeholders
+  // like {{  COMPLAINT_NUMBER  }} in three runs read as one token.
+  const merged = mergeAdjacentRuns(xml);
+
+  // Find {{PLACEHOLDER}} tokens anywhere in body text.
+  const placeholderRe = /\{\{\s*([A-Z0-9_]+)\s*\}\}/g;
+  const placeholders = [];
+  const seen = new Set();
+  let m;
+  const plainText = stripXmlToPlainRuns(merged);
+  while ((m = placeholderRe.exec(plainText.text)) !== null){
+    const name = m[1];
+    if (!seen.has(name)){
+      seen.add(name);
+      placeholders.push(name);
+    }
+  }
+
+  // Locate every table in the doc, and for each, capture its header cell
+  // text plus whether it has a trailing empty (fillable) row.
+  const tables = findTables(merged);
+
+  // Heuristic: the fillable table is the one whose header row contains the
+  // most finance-flavoured header words, and/or that has an empty last row.
+  let bestTable = null, bestScore = -1;
+  const financeWords = ['bank','account','transaction','amount','disputed','layer','ifsc','utr','rrn','reference','date','id'];
+  for (const t of tables){
+    const headerText = (t.headerCells || []).join(' ').toLowerCase();
+    let score = 0;
+    for (const w of financeWords){ if (headerText.includes(w)) score++; }
+    if (t.hasEmptyLastRow) score += 3;
+    if (score > bestScore){ bestScore = score; bestTable = t; }
+  }
+
+  return {
+    xml: merged,
+    placeholders,
+    table: bestTable,
+    allTables: tables
+  };
+}
+
+// Collapse runs with identical <w:rPr>...</w:rPr> that sit back-to-back
+// with nothing but <w:r ...> / </w:r> boundaries between their <w:t> nodes,
+// so a placeholder split across formatting-identical runs becomes one run.
+function mergeAdjacentRuns(xml){
+  const runRe = /<w:r(?:\s[^>]*)?>((?:(?!<w:r[\s>]).)*?)<\/w:r>/gs;
+  let result = '';
+  let lastIndex = 0;
+  let pendingRPr = null, pendingText = '';
+  const flush = () => {
+    if (pendingRPr !== null){
+      result += `<w:r>${pendingRPr}<w:t xml:space="preserve">${pendingText}</w:t></w:r>`;
+      pendingRPr = null; pendingText = '';
+    }
+  };
+  let match;
+  while ((match = runRe.exec(xml)) !== null){
+    const between = xml.slice(lastIndex, match.index);
+    // Any structural tag between two runs (paragraph, cell, row, table
+    // boundaries, bookmarks, etc.) must force a flush of pending text
+    // BEFORE that boundary is written — otherwise text belonging to one
+    // paragraph/cell can silently merge into the next one whenever two
+    // runs happen to share byte-identical <w:rPr>, corrupting the
+    // document by moving text across cell/row boundaries.
+    if (/<\/?w:(p|tc|tr|tbl|sdt|hyperlink|smartTag|ins|del)\b/.test(between)){
+      flush();
+    }
+    result += between;
+    lastIndex = runRe.lastIndex;
+    const inner = match[1];
+    const rPrMatch = inner.match(/<w:rPr>.*?<\/w:rPr>/s);
+    const rPr = rPrMatch ? rPrMatch[0] : '';
+    const tMatches = [...inner.matchAll(/<w:t[^>]*>(.*?)<\/w:t>/gs)];
+    const textOnly = tMatches.map(tm => tm[1]).join('');
+    const hasNonTextContent = /<w:(tab|br|noBreakHyphen|cr)\b/.test(inner);
+
+    if (tMatches.length && !hasNonTextContent){
+      if (pendingRPr === rPr){
+        pendingText += textOnly;
+      } else {
+        flush();
+        pendingRPr = rPr;
+        pendingText = textOnly;
+      }
+    } else {
+      flush();
+      result += match[0];
+    }
+  }
+  flush();
+  result += xml.slice(lastIndex);
+  return result;
+}
+
+// Extract a rough plain-text projection of the document body, run by run,
+// purely to locate placeholder tokens (not used for final output).
+function stripXmlToPlainRuns(xml){
+  const text = xml.replace(/<w:t[^>]*>(.*?)<\/w:t>/gs, (_, t) => t)
+                   .replace(/<[^>]+>/g, '');
+  return { text: decodeXmlEntities(text) };
+}
+
+function decodeXmlEntities(s){
+  return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'");
+}
+
+function findTables(xml){
+  const tables = [];
+  const tblRe = /<w:tbl>.*?<\/w:tbl>/gs;
+  let m;
+  while ((m = tblRe.exec(xml)) !== null){
+    const tblXml = m[0];
+    const rows = [...tblXml.matchAll(/<w:tr\b.*?<\/w:tr>/gs)].map(r => r[0]);
+    if (!rows.length) continue;
+
+    // Header row = first row whose cells contain non-empty text.
+    let headerRowIdx = -1, headerCells = [];
+    for (let i = 0; i < rows.length; i++){
+      const cells = extractCellTexts(rows[i]);
+      const nonEmpty = cells.filter(c => c.trim().length);
+      if (nonEmpty.length >= 2){
+        headerRowIdx = i;
+        headerCells = cells;
+        break;
+      }
+    }
+    if (headerRowIdx === -1) continue;
+
+    const lastRow = rows[rows.length - 1];
+    const lastRowCells = extractCellTexts(lastRow);
+    const hasEmptyLastRow = lastRowCells.length > 0 && lastRowCells.every(c => c.trim() === '');
+
+    tables.push({
+      xml: tblXml,
+      rows,
+      headerRowIdx,
+      headerCells,
+      columnCount: headerCells.length,
+      hasEmptyLastRow,
+      fillRowXml: hasEmptyLastRow ? lastRow : null,
+      fillRowIdx: hasEmptyLastRow ? rows.length - 1 : -1
+    });
+  }
+  return tables;
+}
+
+function extractCellTexts(rowXml){
+  const cells = [...rowXml.matchAll(/<w:tc\b.*?<\/w:tc>/gs)].map(c => c[0]);
+  return cells.map(cellXml => {
+    const texts = [...cellXml.matchAll(/<w:t[^>]*>(.*?)<\/w:t>/gs)].map(t => t[1]);
+    return decodeXmlEntities(texts.join(''));
+  });
+}
+
+/* ============================================================
+   PDF extraction \u2014 complaint report
+   Uses word-level x/y positions (like a real table extractor) rather than
+   flattened line text, because "Money Transfer to" rows wrap across
+   multiple visual sub-lines per cell \u2014 flattened text interleaves rows.
+   ============================================================ */
+
+async function extractPdfWords(arrayBuffer){
+  if (!window.pdfjsLib){
+    throw new Error('The PDF reader library did not load. Check your connection and reload.');
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) });
+  const pdf = await loadingTask.promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const viewport = page.getViewport({ scale: 1 });
+    // pdf.js text items are already word/phrase-ish runs (not single chars),
+    // each with its own transform giving x (transform[4]) and y (transform[5],
+    // measured from the page bottom \u2014 we flip to a top-down "top" like pdfplumber
+    // for readability, though only relative order matters below).
+    const words = content.items
+      .filter(it => it.str && it.str.trim().length)
+      .map(it => ({
+        text: it.str.trim(),
+        x: it.transform[4],
+        top: viewport.height - it.transform[5]
+      }))
+      // Drop private-use-area glyphs (icon fonts — download/expand icons
+      // embedded in the PDF's UI chrome). They carry no data but their
+      // stray position can corrupt subrow grouping or be mistaken for a
+      // real column value.
+      .filter(w => !/^[\uE000-\uF8FF]+$/.test(w.text));
+    pages.push({ pageNum: i, words, height: viewport.height });
+  }
+  return pages;
+}
+
+function extractPlainTextForFallback(pages){
+  // Simple top-down, left-right reading order text, used only for
+  // header-field lookups (acknowledgement no., victim name) which don't
+  // need column awareness.
+  return pages.map(p => {
+    const sorted = [...p.words].sort((a,b) => a.top - b.top || a.x - b.x);
+    const lines = [];
+    let curTop = null, curLine = [];
+    for (const w of sorted){
+      if (curTop === null || Math.abs(w.top - curTop) > 3){
+        if (curLine.length) lines.push(curLine.map(x=>x.text).join(' '));
+        curLine = [w];
+        curTop = w.top;
+      } else {
+        curLine.push(w);
+      }
+    }
+    if (curLine.length) lines.push(curLine.map(x=>x.text).join(' '));
+    return lines.join('\n');
+  }).join('\n\n');
+}
+
+/* Parse the "Money Transfer to" table using x-position column clustering:
+   1. Find the page containing "Money Transfer to" and locate its y-range
+      (from that heading down to "Transaction put on hold" or end of table).
+   2. Within that y-range, read the header row's word x-positions to define
+      column boundaries dynamically (works even if the template report's
+      column widths differ slightly between exports).
+   3. Group words into visual sub-rows by y-proximity, bucket each word into
+      its column by x-position, then merge sub-rows into logical data rows
+      using the sequential row-number column (1, 2, 3, ...) as the anchor \u2014
+      this is what correctly separates rows even though cells wrap onto
+      multiple sub-lines and pdf.js word order isn't strictly row-major. */
+function parseMoneyTransferTable(pages){
+  for (const page of pages){
+    const headingWord = page.words.find(w => /Money/i.test(w.text));
+    if (!headingWord) continue;
+    const transferWord = page.words.find(w => /Transfer/i.test(w.text) && Math.abs(w.top - headingWord.top) < 3);
+    if (!transferWord) continue;
+
+    const tableTop = headingWord.top;
+    const endHeading = page.words.find(w =>
+      /put/i.test(w.text) && page.words.some(w2 => /hold/i.test(w2.text) && Math.abs(w2.top - w.top) < 3) && w.top > tableTop + 20
+    );
+    const acceptedHeading = page.words.find(w => /Accepted/i.test(w.text) && w.top > tableTop + 20);
+    let tableBottom = page.height;
+    if (endHeading) tableBottom = Math.min(tableBottom, endHeading.top - 2);
+    if (acceptedHeading) tableBottom = Math.min(tableBottom, acceptedHeading.top - 2);
+
+    const tableWords = page.words.filter(w => w.top >= tableTop - 1 && w.top <= tableBottom);
+    if (!tableWords.length) continue;
+
+    const result = extractRowsFromWords(tableWords);
+    if (result.length) return result;
+  }
+  return [];
+}
+
+function extractRowsFromWords(tableWords){
+  const sorted = [...tableWords].sort((a,b) => a.top - b.top || a.x - b.x);
+
+  // Group into visual sub-rows by top-proximity.
+  const subrows = [];
+  let curTop = null, cur = [];
+  for (const w of sorted){
+    if (curTop === null || Math.abs(w.top - curTop) > 3){
+      if (cur.length) subrows.push(cur);
+      cur = [w];
+      curTop = w.top;
+    } else {
+      cur.push(w);
+    }
+  }
+  if (cur.length) subrows.push(cur);
+  if (subrows.length < 2) return [];
+
+  // Header block = every subrow from the "Money Transfer to" title down to
+  // (but not including) the subrow where real data starts. Header wording
+  // wraps a different number of lines depending on how many columns the
+  // report has (a "Reference No / Remarks" column, when present, pushes the
+  // header to wrap across 3-4 sub-lines instead of 2) — rather than guess
+  // via word-vocabulary hit-rates, which breaks the moment wrapping shifts,
+  // anchor directly on where data starts: the first subrow whose leftmost
+  // word is the literal digit "1" positioned at the table's leftmost x
+  // (the S.No column always starts the row, and always starts at 1).
+  const leftmostX = Math.min(...sorted.map(w => w.x));
+  let firstDataSubrowIdx = -1;
+  for (let i = 0; i < subrows.length; i++){
+    const first = subrows[i][0];
+    if (first.text === '1' && first.x <= leftmostX + 10){
+      firstDataSubrowIdx = i;
+      break;
+    }
+  }
+  if (firstDataSubrowIdx === -1 || firstDataSubrowIdx === 0) return [];
+  // Skip the table's own title subrow ("Money Transfer to") if it's part of
+  // this block — it sits at x-positions that can coincide with real header
+  // columns (e.g. "Money" lands near the S.No column's x) and would
+  // otherwise contaminate column-label matching below. Detect it as any
+  // leading subrow containing "Money" and "Transfer" together.
+  let titleSubrowEnd = 0;
+  for (let i = 0; i < firstDataSubrowIdx; i++){
+    const rowText = subrows[i].map(w => w.text).join(' ');
+    if (/Money/i.test(rowText) && /Transfer/i.test(rowText)){
+      titleSubrowEnd = i + 1;
+    }
+  }
+  const headerSubrowIdxs = Array.from({length: firstDataSubrowIdx - titleSubrowEnd}, (_, i) => i + titleSubrowEnd);
+
+  const headerWords = headerSubrowIdxs.flatMap(i => subrows[i]);
+  // Column anchors: distinct x clusters among header words (round to nearest
+  // 4px bucket, then take the minimum x seen for each bucket as its start).
+  const xs = [...new Set(headerWords.map(w => Math.round(w.x)))].sort((a,b) => a-b);
+  const colStarts = [];
+  for (const x of xs){
+    if (!colStarts.length || x - colStarts[colStarts.length-1] > 15){
+      colStarts.push(x);
+    }
+  }
+  if (colStarts.length < 6) return []; // doesn't look like the expected table
+
+  const colIndexForX = (x) => {
+    let idx = 0;
+    for (let i = 0; i < colStarts.length; i++){
+      if (x >= colStarts[i] - 6) idx = i;
+    }
+    return idx;
+  };
+
+  // Identify which column index is the S.No column: the header subrow(s)
+  // contain "S" and "No." near the leftmost x \u2014 that's column 0 by construction
+  // since colStarts is sorted ascending and the table's leftmost header word
+  // is always the row-number column in this report format.
+  const snoColIdx = 0;
+
+  const dataSubrows = subrows.slice(headerSubrowIdxs[headerSubrowIdxs.length-1] + 1);
+  if (!dataSubrows.length) return [];
+
+  // Row boundaries: subrow index (within dataSubrows) where the S.No column
+  // contains the next expected sequential integer.
+  const rowBoundaries = [];
+  let expected = 1;
+  for (let i = 0; i < dataSubrows.length; i++){
+    const hit = dataSubrows[i].some(w => colIndexForX(w.x) === snoColIdx && w.text === String(expected));
+    if (hit){
+      rowBoundaries.push(i);
+      expected++;
+    }
+  }
+  if (!rowBoundaries.length) return [];
+
+  const logicalRows = rowBoundaries.map((b, idx) => {
+    const end = idx + 1 < rowBoundaries.length ? rowBoundaries[idx+1] : dataSubrows.length;
+    return dataSubrows.slice(b, end);
+  });
+
+  // Bucket each logical row's words by column index, in reading order.
+  // Each bucketed word also keeps its original (subrow, x) position so that
+  // when several columns later merge into one semantic field (e.g. "Bank"
+  // and "/FIs" both belong to the bank-name field), the merged text can be
+  // re-sorted into true top-to-bottom reading order instead of column order.
+  const bucketedRows = logicalRows.map(lr => {
+    const buckets = {};
+    lr.forEach((subrow, subrowIdx) => {
+      for (const w of subrow){
+        const ci = colIndexForX(w.x);
+        (buckets[ci] = buckets[ci] || []).push({ text: w.text, subrowIdx, x: w.x });
+      }
+    });
+    return buckets;
+  });
+
+  // Map bucket columns to semantic fields using content shape rather than a
+  // fixed column count, since some exports may drop a "Reference" column etc.
+  // We know from the header vocabulary which bucket index holds which label.
+  const colLabel = colStarts.map((cs, i) => {
+    const wordsInCol = headerWords.filter(w => colIndexForX(w.x) === i).map(w => w.text.toLowerCase()).join(' ');
+    const compact = wordsInCol.replace(/\s+/g, ''); // collapse wrap-breaks for substring checks
+    if (/^s$|no\.?$/.test(wordsInCol.trim()) && i === 0) return 'sno';
+    if (/wallet|\(wallet|pg\/pa/.test(wordsInCol) && !/ifsc/.test(wordsInCol)) return 'sourceWallet';
+    if (/\bbank\b|\bfis\b/.test(wordsInCol) && !/taken/.test(wordsInCol)) return 'bank';
+    if (/ifsc|code/.test(wordsInCol)) return 'acctIfsc';
+    if (/utr|transactionid/.test(compact) && !/date/.test(wordsInCol)) return 'txnId';
+    // A lone "id" column only counts as txnId if it isn't the trailing
+    // fragment of an already-claimed "acctIfsc" or "sourceWallet" column —
+    // safe here since acctIfsc/sourceWallet are matched above and returned
+    // immediately, so reaching this line means neither matched.
+    if (/^id\s*\/?$/.test(wordsInCol.trim())) return 'txnId';
+    if (/datetime|date&/.test(compact)) return 'txnDate';
+    if (/disputed|disputeamount/.test(compact)) return 'disputed';
+    if (/amount/.test(wordsInCol) && !/disputed/.test(compact)) return 'amount';
+    if (/reference|remarks/.test(wordsInCol)) return 'reference';
+    if (/taken\s*by/.test(wordsInCol)) return 'actionBy';
+    if (/date.*action/.test(wordsInCol)) return 'dateOfAction';
+    return `col${i}`;
+  });
+
+  const rows = bucketedRows.map(buckets => {
+    const get = (label) => {
+      // Merge every column bucket sharing this label, then sort the combined
+      // words back into original top-to-bottom, left-to-right reading order
+      // (not column-index order) — a field like "Bank of India" can have
+      // "Bank" and "of India" land in different x-clusters on different
+      // wrapped sub-lines, and column order alone would scramble them.
+      const idxs = colLabel.map((l, i) => l === label ? i : -1).filter(i => i !== -1);
+      if (!idxs.length) return '';
+      const words = idxs.flatMap(i => buckets[i] || []);
+      words.sort((a, b) => a.subrowIdx - b.subrowIdx || a.x - b.x);
+      return words.map(w => w.text).join(' ').replace(/\s+/g,' ').trim();
+    };
+    const bankRaw = get('bank');
+    const acctIfscRawFull = get('acctIfsc');
+    // "Layer :N" can land on whichever column's text happens to wrap onto
+    // that line — usually the bank-name column, but bank names with
+    // trailing parenthetical text (e.g. "Others (...)") can push it onto
+    // the account/IFSC column instead. Check both, in order.
+    const layerSource = bankRaw + ' ' + acctIfscRawFull;
+    const layerMatch = layerSource.match(/Layer\s*:?\s*(\d+)/i);
+    const bankName = cleanBankName(bankRaw.replace(/Layer\s*:?\s*\d+/i, ''));
+
+    const acctIfscRaw = acctIfscRawFull.replace(/Layer\s*:?\s*\d+/i, '').replace(/\s+/g, '');
+    const ifscMatch = acctIfscRaw.match(/([A-Z]{4}0[A-Z0-9]{6})/);
+    const ifsc = ifscMatch ? ifscMatch[1] : '';
+    const accountNumber = ifscMatch ? acctIfscRaw.slice(0, ifscMatch.index) : acctIfscRaw.replace(/\bNA\b/g, '');
+
+    const txnDateRaw = get('txnDate');
+    const dateMatch = txnDateRaw.replace(/\s+/g, '').match(/\d{2}\/\d{2}\/\d{4}/);
+    const timeMatch = txnDateRaw.match(/(\d{1,2}:\d{2}(?::\d{2})?)\s*:?\s*([AP]M)/i);
+
+    // Amount columns can pick up two repeated/wrapped copies of the same
+    // number, or a wrapped decimal split like "90,000.0 0" — strip spaces
+    // before matching the money shape.
+    const firstMoney = (raw) => {
+      const m = raw.replace(/\s+/g,'').match(/[\d,]+\.\d{2}/);
+      return m ? m[0] : raw.replace(/\s+/g,'').trim();
+    };
+
+    return {
+      bankName: bankName || 'Unknown bank',
+      layer: layerMatch ? layerMatch[1] : '',
+      accountNumber,
+      ifsc,
+      transactionId: get('txnId').replace(/\s+/g, ''),
+      transactionDate: dateMatch ? dateMatch[0] : '',
+      transactionTime: timeMatch ? `${timeMatch[1]} ${timeMatch[2].toUpperCase()}` : '',
+      transactionAmount: firstMoney(get('amount')),
+      disputedAmount: firstMoney(get('disputed')) || firstMoney(get('amount')),
+      reference: get('reference'),
+      actionBy: get('actionBy'),
+      dateOfAction: get('dateOfAction')
+    };
+  });
+
+  return rows.filter(r => r.bankName && r.bankName !== 'Unknown bank' || r.accountNumber || r.transactionId);
+}
+
+function cleanBankName(raw){
+  if (!raw) return '';
+  let s = raw.replace(/\s+/g,' ').trim();
+  s = s.replace(/^\d+\s+/, '');
+  // A hyphen at the end of one wrapped word and the start of the next
+  // (e.g. "CO-" then "OPERATIVE") should join with no space, matching how
+  // the name reads as a single hyphenated word.
+  s = s.replace(/-\s+/g, '-');
+  if (s === s.toUpperCase() && /[A-Z]/.test(s)){
+    // Title-case each word, but a letter directly after a hyphen stays
+    // lowercase (Co-operative, not Co-Operative) \u2014 the hyphen joins one
+    // word rather than starting a new one.
+    s = s.toLowerCase().replace(/(^|[^a-zA-Z-])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
+    s = s.replace(/\bAnd\b/g, 'and').replace(/\bOf\b/g, 'of');
+  }
+  return s.trim();
+}
+
+// Combine per-file complaint extractions into one dataset. Each row is
+// tagged with its source complaint's ack number and victim name, so a
+// notice built from rows spanning several complaints still shows the right
+// complaint number against each transaction, and the field-plan sample
+// values fall back to the first complaint's header info.
+function mergeComplaintData(perFileResults){
+  const allRows = [];
+  perFileResults.forEach(({ file, data }) => {
+    data.rows.forEach(row => {
+      allRows.push({
+        ...row,
+        sourceAckNumber: data.ackNumber || '',
+        sourceVictimName: data.victimName || '',
+        sourceComplaintDate: data.complaintDate || '',
+        sourceFileName: file.name
+      });
+    });
+  });
+  const first = perFileResults[0] ? perFileResults[0].data : {};
+  return {
+    ackNumber: first.ackNumber || '',
+    victimName: first.victimName || '',
+    complaintDate: first.complaintDate || '',
+    rows: allRows,
+    multiSource: perFileResults.length > 1,
+    sourceCount: perFileResults.length
+  };
+}
+
+async function extractComplaintData(arrayBuffer){
+  const pages = await extractPdfWords(arrayBuffer);
+  const fallbackText = extractPlainTextForFallback(pages);
+
+  const ackMatch = fallbackText.match(/Acknowledgement\s*No\.?\s*([A-Za-z0-9]+)/i);
+  const ackNumber = ackMatch ? ackMatch[1].trim() : '';
+
+  const nameMatch = fallbackText.match(/\bName\s+([A-Z][A-Za-z .]{1,60})\s*\n?\s*Gender/i);
+  const victimName = nameMatch ? nameMatch[1].trim() : '';
+
+  const dateMatch = fallbackText.match(/Complaint\s*Date\s+(\d{2}\/\d{2}\/\d{4})/i);
+  const complaintDate = dateMatch ? dateMatch[1] : '';
+
+  const rows = parseMoneyTransferTable(pages);
+
+  return { ackNumber, victimName, complaintDate, rows };
+}
+
+/* Excel import path. Reads the "Money Transfer to" sheet (the same sheet
+   name used by the portal's own Excel export) and maps columns by header
+   text rather than position, so column reordering between exports doesn't
+   break extraction. Produces the exact same row shape as the PDF parser so
+   both paths feed identical downstream logic (grouping, field-plan,
+   notice generation, layer filtering). */
+async function extractComplaintDataFromExcel(arrayBuffer){
+  if (!window.XLSX){
+    throw new Error('The Excel reader library did not load. Check your connection and reload.');
+  }
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+  const sheetName = workbook.SheetNames.find(n => /money\s*transfer\s*to/i.test(n)) || workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet){
+    return { ackNumber: '', victimName: '', complaintDate: '', rows: [] };
+  }
+
+  const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  if (!grid.length) return { ackNumber: '', victimName: '', complaintDate: '', rows: [] };
+
+  const headerRow = grid[0].map(h => String(h || '').trim().toLowerCase());
+  const colIndex = (patterns) => headerRow.findIndex(h => patterns.some(p => p.test(h)));
+
+  const idx = {
+    ack: colIndex([/acknowledgement/]),
+    bank: colIndex([/bank\s*\/?\s*fis/]),
+    layer: colIndex([/^layer$/]),
+    account: colIndex([/^account\s*no$/, /^account\s*number$/]),
+    ifsc: colIndex([/ifsc/]),
+    txnDate: colIndex([/transaction\s*date/]),
+    // Prefer the second "Transaction ID / UTR Number" column (the real UTR
+    // against the destination account) over the first, which in this sheet
+    // format holds the source-side reference instead.
+    txnId2: headerRow.map((h,i)=>({h,i})).filter(x => /transaction\s*id.*utr/.test(x.h)).map(x=>x.i).pop(),
+    amount: colIndex([/^transaction\s*amount$/]),
+    disputed: colIndex([/disputed\s*amount/])
+  };
+
+  let ackNumber = '';
+  const rows = [];
+  for (let r = 1; r < grid.length; r++){
+    const row = grid[r];
+    if (!row || row.every(c => String(c).trim() === '')) continue;
+
+    const get = (i) => (i !== undefined && i !== -1 && row[i] !== undefined) ? String(row[i]).trim() : '';
+
+    if (!ackNumber && idx.ack !== -1){
+      const a = get(idx.ack);
+      if (a) ackNumber = a;
+    }
+
+    const rawDate = get(idx.txnDate);
+    const dateMatch2 = rawDate.match(/(\d{2}\/\d{2}\/\d{4})/);
+    const timeMatch2 = rawDate.match(/(\d{1,2}:\d{2}(?::\d{2})?)\s*:?\s*([AP]M)/i);
+
+    const bankName = cleanBankName(get(idx.bank));
+    if (!bankName) continue;
+
+    rows.push({
+      bankName,
+      layer: get(idx.layer),
+      accountNumber: get(idx.account),
+      ifsc: get(idx.ifsc) && get(idx.ifsc).toUpperCase() !== 'NA' ? get(idx.ifsc) : '',
+      transactionId: get(idx.txnId2),
+      transactionDate: dateMatch2 ? dateMatch2[1] : '',
+      transactionTime: timeMatch2 ? `${timeMatch2[1]} ${timeMatch2[2].toUpperCase()}` : '',
+      transactionAmount: get(idx.amount).replace(/^₹?\s*/, ''),
+      disputedAmount: (get(idx.disputed) || get(idx.amount)).replace(/^₹?\s*/, '')
+    });
+  }
+
+  return { ackNumber, victimName: '', complaintDate: '', rows };
+}
+
+/* ============================================================
+   Field plan \u2014 turn template analysis + complaint data into a
+   confirmable checklist (Stage 2)
+   ============================================================ */
+
+function buildFieldPlan(templateAnalysis, complaintData){
+  const plan = [];
+  const sample = complaintData.rows[0] || {};
+
+  // One entry per {{PLACEHOLDER}} found in the template body.
+  const placeholderMeta = {
+    DATE: { label: 'Notice date', desc: "Today's date, placed wherever {{DATE}} appears in the format.", sample: new Date().toLocaleDateString('en-GB') },
+    BANK_NAME: { label: 'Bank name', desc: 'The recipient bank for this notice \u2014 one notice is generated per bank found in the complaint.', sample: sample.bankName || '\u2014' },
+    COMPLAINT_NUMBER: { label: 'Complaint / acknowledgement number', desc: 'Pulled from "Acknowledgement No." at the top of the complaint report.', sample: complaintData.ackNumber || '\u2014' },
+    VICTIM_NAME: { label: 'Complainant / victim name', desc: 'Pulled from the complaint report\'s victim details.', sample: complaintData.victimName || '\u2014' },
+    COMPLAINT_DATE: { label: 'Complaint date', desc: 'The date the complaint was filed, from the complaint report.', sample: complaintData.complaintDate || '\u2014' }
+  };
+
+  templateAnalysis.placeholders.forEach(name => {
+    const meta = placeholderMeta[name] || { label: humanizeToken(name), desc: `Fills every {{${name}}} found in the format.`, sample: '\u2014' };
+    plan.push({
+      id: 'ph_' + name,
+      kind: 'placeholder',
+      token: name,
+      label: meta.label,
+      desc: meta.desc,
+      source: 'Format placeholder',
+      sample: meta.sample,
+      checked: true,
+      core: true
+    });
+  });
+
+  // One entry per table column detected in the format's fillable table.
+  const table = templateAnalysis.table;
+  if (table){
+    const colMeta = [
+      { match: /bank/i, id: 'col_bank', label: 'Bank name', field: 'bankName' },
+      { match: /account/i, id: 'col_account', label: 'Bank account number', field: 'accountNumber' },
+      { match: /ifsc/i, id: 'col_ifsc', label: 'IFSC code', field: 'ifsc' },
+      { match: /transaction\s*id|utr/i, id: 'col_txnid', label: 'Transaction ID / UTR', field: 'transactionId' },
+      { match: /date/i, id: 'col_date', label: 'Transaction date & time', field: 'transactionDate' },
+      { match: /disputed/i, id: 'col_disputed', label: 'Disputed amount', field: 'disputedAmount' },
+      { match: /amount/i, id: 'col_amount', label: 'Transaction amount', field: 'transactionAmount' },
+      { match: /layer/i, id: 'col_layer', label: 'Layer', field: 'layer' }
+    ];
+    const usedIds = new Set();
+    table.headerCells.forEach((headerText, idx) => {
+      const clean = headerText.replace(/\s+/g,' ').trim();
+      if (!clean) return;
+      let matched = colMeta.find(cm => cm.match.test(clean) && !usedIds.has(cm.id));
+      const id = matched ? matched.id : `col_${idx}`;
+      usedIds.add(id);
+      const label = matched ? matched.label : humanizeToken(clean);
+      const field = matched ? matched.field : null;
+      const sampleVal = field ? (sample[field] || '\u2014') : '\u2014';
+      plan.push({
+        id,
+        kind: 'column',
+        columnIndex: idx,
+        label,
+        desc: `Column "${clean}" in the format\'s table \u2014 one row per bank transfer.`,
+        source: 'Table column',
+        sample: sampleVal,
+        checked: true,
+        core: true,
+        field
+      });
+    });
+  }
+
+  return plan;
+}
+
+function humanizeToken(token){
+  return token
+    .replace(/[_\-]+/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim();
+}
+
+/* ---------- Stage 2 render + wire ---------- */
+function renderFieldStage(){
+  if (!state.templateAnalysis) return '';
+  const placeholderFields = state.fieldPlan.filter(f => f.kind === 'placeholder');
+  const columnFields = state.fieldPlan.filter(f => f.kind === 'column');
+  const availableLayers = [...new Set(state.complaintData.rows.map(r => r.layer).filter(Boolean))]
+    .sort((a,b) => parseInt(a,10) - parseInt(b,10));
+
+  return `
+  <div class="stage-head">
+    <h2>Here\'s what the format needs</h2>
+    <p>Reading the notice format found these fields. Untick anything that shouldn\'t be filled in, or leave everything as-is \u2014 all of this is pulled straight from the complaint report.</p>
+  </div>
+
+  ${availableLayers.length ? `
+  <div class="field-panel">
+    <div class="field-panel-head">
+      <h3>Generate up to which layer?</h3>
+      <span>${availableLayers.length} layer${availableLayers.length===1?'':'s'} found</span>
+    </div>
+    <div class="field-list">
+      <div class="field-row-desc" style="padding:2px 12px 10px;">Tick the layers to include. Most cyber cell SIs only pursue up to Layer 3 \u2014 untick anything past that and those transfer rows are left out of the generated notices entirely.</div>
+      <div style="display:flex; flex-wrap:wrap; gap:10px; padding:4px 12px 12px;">
+        ${availableLayers.map(layer => `
+          <label style="display:flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid var(--line); border-radius:20px; cursor:pointer; font-size:13px; user-select:none;" data-layer-label="${layer}">
+            <div class="field-check ${state.selectedLayers.has(layer)?'checked':''}" data-layer-check="${layer}" style="width:16px; height:16px;"></div>
+            Layer ${escapeHtml(layer)}
+          </label>`).join('')}
+      </div>
+    </div>
+  </div>` : ''}
+
+  ${placeholderFields.length ? `
+  <div class="field-panel">
+    <div class="field-panel-head">
+      <h3>Letter fields</h3>
+      <span>${placeholderFields.length} found</span>
+    </div>
+    <div class="field-list">
+      ${placeholderFields.map(f => fieldRow(f)).join('')}
+    </div>
+  </div>` : ''}
+
+  ${columnFields.length ? `
+  <div class="field-panel">
+    <div class="field-panel-head">
+      <h3>Table columns</h3>
+      <span>${columnFields.length} found</span>
+    </div>
+    <div class="field-list">
+      ${columnFields.map(f => fieldRow(f)).join('')}
+    </div>
+  </div>` : `
+  <div class="field-panel">
+    <div class="field-panel-head"><h3>Table columns</h3></div>
+    <div class="empty-hint">No fillable table was detected in this format \u2014 the letter fields above will still be filled in.</div>
+  </div>`}
+
+  <div class="extra-box">
+    <label for="extra-instructions">Anything else to add or change?</label>
+    <div class="hint">Optional \u2014 describe any extra field, wording change, or instruction for the notices. For example: "also add the victim's mobile number under the complaint number" or "write the disputed amount in words too."</div>
+    <textarea id="extra-instructions" placeholder="e.g. Add the victim's mobile number below the complaint number...">${escapeHtml(state.extraInstructions)}</textarea>
+  </div>
+
+  <div class="stage-actions">
+    <button class="btn btn-ghost" id="btn-back-upload">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5m0 0 7 7m-7-7 7-7"/></svg>
+      Back
+    </button>
+    <button class="btn btn-primary" id="btn-to-groups">
+      Group by bank
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>`;
+}
+
+function fieldRow(f){
+  return `
+  <div class="field-row ${f.core?'core':''}" data-field-row="${f.id}">
+    <div class="field-check ${f.checked?'checked':''}" data-field-check="${f.id}"></div>
+    <div class="field-row-body" data-field-toggle="${f.id}">
+      <div class="field-row-name">${escapeHtml(f.label)}</div>
+      <div class="field-row-desc">${escapeHtml(f.desc)}</div>
+      <span class="field-row-src">${escapeHtml(f.source)}</span>
+      <div class="field-row-sample">Sample: ${escapeHtml(f.sample)}</div>
+    </div>
+  </div>`;
+}
+
+function wireFieldStage(){
+  state.fieldPlan.forEach(f => {
+    const check = document.querySelector(`[data-field-check="${f.id}"]`);
+    const toggleArea = document.querySelector(`[data-field-toggle="${f.id}"]`);
+    const doToggle = () => {
+      f.checked = !f.checked;
+      check.classList.toggle('checked', f.checked);
+    };
+    if (check) check.addEventListener('click', doToggle);
+    if (toggleArea) toggleArea.addEventListener('click', doToggle);
+  });
+
+  const availableLayers = [...new Set(state.complaintData.rows.map(r => r.layer).filter(Boolean))];
+  availableLayers.forEach(layer => {
+    const check = document.querySelector(`[data-layer-check="${layer}"]`);
+    const label = document.querySelector(`[data-layer-label="${layer}"]`);
+    const doToggle = () => {
+      if (state.selectedLayers.has(layer)) state.selectedLayers.delete(layer);
+      else state.selectedLayers.add(layer);
+      check.classList.toggle('checked', state.selectedLayers.has(layer));
+    };
+    if (check) check.addEventListener('click', doToggle);
+    if (label) label.addEventListener('click', (e) => { if (e.target !== check) doToggle(); });
+  });
+
+  const textarea = document.getElementById('extra-instructions');
+  if (textarea){
+    textarea.addEventListener('input', e => { state.extraInstructions = e.target.value; });
+  }
+
+  const backBtn = document.getElementById('btn-back-upload');
+  if (backBtn) backBtn.addEventListener('click', () => { state.stage = 0; render(); });
+
+  const nextBtn = document.getElementById('btn-to-groups');
+  if (nextBtn) nextBtn.addEventListener('click', () => {
+    const filteredRows = state.complaintData.rows.filter(r => !r.layer || state.selectedLayers.has(r.layer));
+    if (!filteredRows.length){
+      toast('No transaction rows match the selected layers \u2014 tick at least one layer to continue.', true);
+      return;
+    }
+    state.bankGroups = groupRowsByBank(filteredRows);
+    state.stage = 3;
+    render();
+  });
+}
+
+function groupRowsByBank(rows){
+  const map = new Map();
+  rows.forEach(r => {
+    // Group by bank + source complaint, so a notice never mixes rows from
+    // two different complaints under one acknowledgement number.
+    const key = r.bankName.trim().toLowerCase() + '||' + (r.sourceAckNumber || '');
+    if (!map.has(key)){
+      map.set(key, {
+        bankName: r.bankName,
+        rows: [],
+        ackNumber: r.sourceAckNumber || '',
+        victimName: r.sourceVictimName || '',
+        complaintDate: r.sourceComplaintDate || '',
+        sourceFileName: r.sourceFileName || ''
+      });
+    }
+    map.get(key).rows.push(r);
+  });
+  return [...map.values()];
+}
+
+/* ---------- Stage 3: review by bank ---------- */
+function renderGroupsStage(){
+  if (!state.bankGroups.length) return '';
+  const totalRows = state.bankGroups.reduce((s,g) => s + g.rows.length, 0);
+  const repeated = state.bankGroups.filter(g => g.rows.length > 1).length;
+
+  return `
+  <div class="stage-head">
+    <h2>${state.bankGroups.length} notice${state.bankGroups.length===1?'':'s'} will be created</h2>
+    <p>Each card below becomes one notice document, in the exact layout of your uploaded format. A bank that appears more than once in the complaint gets every one of its rows in a single notice.</p>
+  </div>
+
+  <div class="summary-strip">
+    <div class="summary-card"><div class="num">${state.bankGroups.length}</div><div class="lbl">Notices to generate</div></div>
+    <div class="summary-card"><div class="num">${totalRows}</div><div class="lbl">Transfer rows total</div></div>
+    <div class="summary-card"><div class="num">${repeated}</div><div class="lbl">Bank${repeated===1?'':'s'} with multiple rows</div></div>
+  </div>
+
+  ${state.bankGroups.map((g, i) => bankCard(g, i)).join('')}
+
+  <div class="stage-actions">
+    <button class="btn btn-ghost" id="btn-back-fields">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5m0 0 7 7m-7-7 7-7"/></svg>
+      Back
+    </button>
+    <button class="btn btn-primary" id="btn-generate">
+      Generate ${state.bankGroups.length} notice${state.bankGroups.length===1?'':'s'}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>`;
+}
+
+function bankCard(group, idx){
+  const initials = group.bankName.split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
+  return `
+  <div class="bank-card" data-bank-card="${idx}">
+    <div class="bank-card-head" data-bank-toggle="${idx}">
+      <div class="bank-card-mark">${escapeHtml(initials)}</div>
+      <div class="bank-card-title">
+        <div class="name">${escapeHtml(group.bankName)}</div>
+        <div class="meta">1 notice \u00b7 ${group.rows.length} row${group.rows.length===1?'':'s'}${state.complaintData.multiSource ? ` \u00b7 complaint ${escapeHtml(group.ackNumber || '\u2014')}` : ''}</div>
+      </div>
+      <div class="bank-card-count">${group.rows.length} row${group.rows.length===1?'':'s'}</div>
+      <svg class="bank-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="bank-card-body">
+      <table class="bank-table">
+        <thead><tr>
+          <th>Layer</th><th>Account No.</th><th>IFSC</th><th>Transaction ID</th><th>Date &amp; time</th><th>Amount</th><th>Disputed</th>
+        </tr></thead>
+        <tbody>
+          ${group.rows.map(r => `
+          <tr>
+            <td><span class="layer-pill">Layer ${escapeHtml(r.layer||'\u2014')}</span></td>
+            <td>${escapeHtml(r.accountNumber||'\u2014')}</td>
+            <td>${escapeHtml(r.ifsc||'\u2014')}</td>
+            <td>${escapeHtml(r.transactionId||'\u2014')}</td>
+            <td>${escapeHtml(r.transactionDate||'')} ${escapeHtml(r.transactionTime||'')}</td>
+            <td>\u20b9${escapeHtml(r.transactionAmount||'\u2014')}</td>
+            <td>\u20b9${escapeHtml(r.disputedAmount||'\u2014')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function wireGroupsStage(){
+  state.bankGroups.forEach((g, idx) => {
+    const head = document.querySelector(`[data-bank-toggle="${idx}"]`);
+    const card = document.querySelector(`[data-bank-card="${idx}"]`);
+    if (head && card) head.addEventListener('click', () => card.classList.toggle('open'));
+  });
+  const backBtn = document.getElementById('btn-back-fields');
+  if (backBtn) backBtn.addEventListener('click', () => { state.stage = 2; render(); });
+
+  const genBtn = document.getElementById('btn-generate');
+  if (genBtn) genBtn.addEventListener('click', runGeneration);
+}
+
+async function runGeneration(){
+  const genBtn = document.getElementById('btn-generate');
+  if (genBtn){ genBtn.disabled = true; genBtn.textContent = 'Generating\u2026'; }
+  try{
+    state.generated = [];
+    for (const group of state.bankGroups){
+      const blob = generateNoticeDocx(group);
+      const safeBankName = group.bankName.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g,'');
+      const filename = `Notice_${safeBankName}_${group.ackNumber || state.complaintData.ackNumber || 'complaint'}.docx`;
+      state.generated.push({ bankName: group.bankName, blob, filename, rowCount: group.rows.length });
+    }
+    state.stage = 4;
+    render();
+  }catch(err){
+    console.error(err);
+    toast(err.message || 'Something went wrong while generating the notices.', true);
+    if (genBtn){ genBtn.disabled = false; genBtn.textContent = `Generate ${state.bankGroups.length} notices`; }
+  }
+}
+
+/* ---------- Stage 4: done ---------- */
+function renderDoneStage(){
+  if (!state.generated.length) return '';
+  return `
+  <div class="done-hero">
+    <div class="done-mark">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <h2>${state.generated.length} notice${state.generated.length===1?'':'s'} ready</h2>
+    <p>Each file matches your uploaded format, filled from the complaint report.</p>
+  </div>
+  <div class="notice-grid">
+    ${state.generated.map((n, i) => `
+    <div class="notice-card">
+      <div class="notice-card-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      </div>
+      <div class="notice-card-body">
+        <div class="name">${escapeHtml(n.bankName)}</div>
+        <div class="meta">${n.rowCount} row${n.rowCount===1?'':'s'} \u00b7 .docx</div>
+      </div>
+      <button class="notice-card-dl" data-download="${i}" title="Download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13m0-13 4.5 4.5M12 3 7.5 7.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      </button>
+    </div>`).join('')}
+  </div>
+  <div class="done-actions">
+    <button class="btn" id="btn-download-all">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+      Download all
+    </button>
+    <button class="btn btn-primary" id="btn-start-over">Start a new batch</button>
+  </div>`;
+}
+
+function wireDoneStage(){
+  state.generated.forEach((n, i) => {
+    const btn = document.querySelector(`[data-download="${i}"]`);
+    if (btn) btn.addEventListener('click', () => downloadBlob(n.blob, n.filename));
+  });
+  const allBtn = document.getElementById('btn-download-all');
+  if (allBtn) allBtn.addEventListener('click', () => {
+    state.generated.forEach((n, i) => setTimeout(() => downloadBlob(n.blob, n.filename), i * 250));
+  });
+  const overBtn = document.getElementById('btn-start-over');
+  if (overBtn) overBtn.addEventListener('click', () => {
+    state.stage = 0;
+    state.templateFile = null;
+    state.complaintFiles = [];
+    state.templateAnalysis = null;
+    state.complaintData = null;
+    state.fieldPlan = [];
+    state.extraInstructions = '';
+    state.selectedLayers = new Set();
+    state.bankGroups = [];
+    state.generated = [];
+    render();
+  });
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/* ============================================================
+   DOCX generation \u2014 clone the template zip byte-for-byte, only
+   touching text inside runs so every style/format/image is preserved.
+   ============================================================ */
+
+function generateNoticeDocx(group){
+  const ta = state.templateAnalysis;
+  const zip = new PizZip(state.templateFile.arrayBuffer.slice(0));
+  let xml = ta.xml;
+
+  const checkedPlaceholders = new Set(
+    state.fieldPlan.filter(f => f.kind === 'placeholder' && f.checked).map(f => f.token)
+  );
+
+  const placeholderValues = {
+    DATE: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }),
+    BANK_NAME: group.bankName,
+    COMPLAINT_NUMBER: group.ackNumber || state.complaintData.ackNumber || '',
+    VICTIM_NAME: group.victimName || state.complaintData.victimName || '',
+    COMPLAINT_DATE: group.complaintDate || state.complaintData.complaintDate || ''
+  };
+
+  // Replace every {{TOKEN}} that's checked; leave unchecked ones exactly as
+  // typed in the template (the user chose not to auto-fill them).
+  ta.placeholders.forEach(token => {
+    if (!checkedPlaceholders.has(token)) return;
+    const value = placeholderValues[token] !== undefined ? placeholderValues[token] : '';
+    const re = new RegExp(`\\{\\{\\s*${escapeRegex(token)}\\s*\\}\\}`, 'g');
+    xml = xml.replace(re, escapeXmlText(value));
+  });
+
+  // Fill the table: clone the template's empty data row once per transfer
+  // row in this bank's group, preserving every run/cell property untouched
+  // and only injecting text into the <w:t> nodes.
+  if (ta.table && ta.table.fillRowXml){
+    const checkedColumns = state.fieldPlan.filter(f => f.kind === 'column' && f.checked);
+    const clonedRows = group.rows.map(row => buildFilledRow(ta.table.fillRowXml, ta.table.headerCells, checkedColumns, row)).join('');
+    // The fill row appears exactly once in the source table xml \u2014 swap it
+    // for N clones (N = number of transfer rows for this bank).
+    const idx = xml.indexOf(ta.table.fillRowXml);
+    if (idx !== -1){
+      xml = xml.slice(0, idx) + clonedRows + xml.slice(idx + ta.table.fillRowXml.length);
+    }
+  }
+
+  // Extra transaction rows add real height the template wasn't authored
+  // for. Rather than guess at row-level spacing (this template's fill row
+  // has no explicit height/spacing to shrink), reclaim page space at the
+  // section level — tightening margins and any paragraph line-spacing —
+  // scaled to how many extra rows this notice carries, so a 1-row notice
+  // is untouched and a many-row notice still fits on one page.
+  const extraRows = Math.max(0, group.rows.length - 1);
+  if (extraRows > 0){
+    xml = compactPageForExtraRows(xml, extraRows);
+  }
+
+  zip.file('word/document.xml', xml);
+  const out = zip.generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  return out;
+}
+
+// Shrinks top/bottom page margins and reduces "atLeast" paragraph line
+// spacing proportionally to how many extra table rows were added, so notices
+// with several transfer rows still fit on a single page like the original
+// template did with one row. Left/right margins are untouched (wouldn't
+// help vertical fit) and header/footer distances are left alone.
+function compactPageForExtraRows(xml, extraRows){
+  // Roughly 260 twips (~0.18") per extra row is what one more table row
+  // costs vertically in this template; cap total reclaimed margin so it
+  // never looks obviously cramped even with many rows.
+  const reclaim = Math.min(extraRows * 130, 500);
+
+  xml = xml.replace(/<w:pgMar\s+([^/]*?)w:top="(\d+)"([^/]*?)w:bottom="(\d+)"([^/]*?)\/>/, (m, pre, top, mid, bottom, post) => {
+    const newTop = Math.max(140, parseInt(top, 10) - reclaim);
+    const newBottom = Math.max(140, parseInt(bottom, 10) - reclaim);
+    return `<w:pgMar ${pre}w:top="${newTop}"${mid}w:bottom="${newBottom}"${post}/>`;
+  });
+
+  // Tighten any "atLeast" minimum line spacing outside the table slightly
+  // once there are several extra rows, since that's the other place spare
+  // vertical space can be reclaimed without changing font size.
+  if (extraRows >= 2){
+    xml = xml.replace(/<w:spacing([^>]*?)w:line="(\d+)"([^>]*?)w:lineRule="atLeast"([^>]*?)\/>/g, (m, pre, line, mid, post) => {
+      const newLine = Math.max(200, Math.round(parseInt(line, 10) * 0.9));
+      return `<w:spacing${pre}w:line="${newLine}"${mid}w:lineRule="atLeast"${post}/>`;
+    });
+  }
+
+  return xml;
+}
+
+function buildFilledRow(templateRowXml, headerCells, checkedColumns, row){
+  const cellXmls = [...templateRowXml.matchAll(/<w:tc\b.*?<\/w:tc>/gs)].map(m => m[0]);
+  const fieldForColumn = (idx) => {
+    const col = checkedColumns.find(c => c.columnIndex === idx);
+    return col ? col.field : null;
+  };
+  const valueFor = (field) => {
+    if (!field) return '';
+    if (field === 'transactionDate'){
+      return [row.transactionDate, row.transactionTime].filter(Boolean).join(' ');
+    }
+    if (field === 'transactionAmount' || field === 'disputedAmount'){
+      const v = row[field];
+      return v ? `\u20b9 ${v}` : '';
+    }
+    return row[field] || '';
+  };
+
+  let newRow = templateRowXml;
+  // Rebuild the row by replacing each cell's inner content in place, cell by
+  // cell, right to left so earlier match indices don't shift.
+  for (let i = cellXmls.length - 1; i >= 0; i--){
+    const cellXml = cellXmls[i];
+    const field = fieldForColumn(i);
+    const value = valueFor(field);
+    const filledCell = injectTextIntoCell(cellXml, value);
+    const pos = newRow.lastIndexOf(cellXml);
+    newRow = newRow.slice(0, pos) + filledCell + newRow.slice(pos + cellXml.length);
+  }
+  return newRow;
+}
+
+// Insert text into an (empty) table cell by writing it into that cell's
+// existing paragraph/run-property shell, so font, size, alignment and cell
+// borders/shading are all inherited exactly as authored in the template.
+function injectTextIntoCell(cellXml, value){
+  if (!value) return cellXml;
+  const safe = escapeXmlText(value);
+
+  // If the cell already has a <w:r>...</w:r> (even an empty one), reuse its
+  // <w:rPr> so the injected text matches the template's font/size/bold.
+  const runMatch = cellXml.match(/<w:r(?:\s[^>]*)?>(.*?)<\/w:r>/s);
+  if (runMatch){
+    const rPrMatch = runMatch[1].match(/<w:rPr>.*?<\/w:rPr>/s);
+    const rPr = rPrMatch ? rPrMatch[0] : '';
+    const newRun = `<w:r>${rPr}<w:t xml:space="preserve">${safe}</w:t></w:r>`;
+    return cellXml.replace(runMatch[0], newRun);
+  }
+
+  // No run at all (a bare empty paragraph) \u2014 insert a plain run just
+  // before the paragraph's closing tag.
+  const pCloseIdx = cellXml.lastIndexOf('</w:p>');
+  if (pCloseIdx !== -1){
+    return cellXml.slice(0, pCloseIdx) + `<w:r><w:t xml:space="preserve">${safe}</w:t></w:r>` + cellXml.slice(pCloseIdx);
+  }
+  return cellXml;
+}
+
+function escapeRegex(s){
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeXmlText(s){
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\u20b9/g, '\u20b9'); // rupee sign passes through untouched in UTF-8 XML
+}
+
+/* ---------- boot ---------- */
+document.addEventListener('DOMContentLoaded', render);
+
+
+
+
+
+
+
+
+</script>
+</body>
+</html>
